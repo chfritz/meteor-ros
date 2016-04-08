@@ -1,24 +1,29 @@
 Package.describe({
   name: 'chfritz:ros',
-  version: '0.0.1',
-  summary: 'Meteor package for ROS. For now just a thin wrapper around roslibj.',
-  // URL to the Git repository containing the source code for this package.
-  git: '',
-  // By default, Meteor will default to using README.md for documentation.
-  // To avoid submitting documentation, set this field to null.
+  version: '0.0.2',
+  summary: 'Meteor package for ROS. For now this only allows publishing and subscribing to topics.',
+  git: 'https://github.com/chfritz/meteor-ros',
   documentation: 'README.md'
 });
 
 Npm.depends({
-    "roslib": "0.17.0"
+  "portscanner"   : "0.1.3",
+  "xmlrpc"        : "1.0.2",
+  "eventemitter2" : "0.4.14",
+  "walker"        : "1.0.7",
+  "MD5"           : "0.0.0",
+  "async"         : "0.1.22"
 });
 
 Package.onUse(function(api) {
   api.versionsFrom('1.2.1');
   api.use('ecmascript');
-  api.addFiles('meteor-ros.js');
+  api.addFiles([
+    'lib/environment.js','lib/node.js','lib/fields.js',
+    'lib/master.js','lib/topic.js','lib/packages.js',
+    'lib/messages.js','lib/tcpros.js','lib/ros.js']);
   if (api.export) {
-    api.export('ROSLIB', 'server');
+    api.export('ros', 'server');
   }
 });
 
