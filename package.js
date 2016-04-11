@@ -17,13 +17,18 @@ Npm.depends({
 
 Package.onUse(function(api) {
   api.versionsFrom('1.2.1');
-  api.use('ecmascript');
+  api.use(['ecmascript', 'mongo']);
   api.addFiles([
-    'lib/environment.js','lib/node.js','lib/fields.js',
-    'lib/master.js','lib/topic.js','lib/packages.js',
-    'lib/messages.js','lib/tcpros.js','lib/ros.js']);
+    'lib/environment.js', 'lib/node.js', 'lib/fields.js',
+    'lib/master.js', 'lib/topic.js', 'lib/packages.js',
+    'lib/messages.js', 'lib/tcpros.js', 'lib/ros.js',
+    'server/main.js'],
+               'server');
+  api.addFiles(['shared.js']);
   if (api.export) {
     api.export('ros', 'server');
+    api.export('ROS', 'server');
+    api.export('Topics');
   }
 });
 
