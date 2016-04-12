@@ -11,7 +11,7 @@ Npm.depends({
   "xmlrpc"        : "1.0.2",
   "eventemitter2" : "0.4.14",
   "walker"        : "1.0.7",
-  "MD5"           : "0.0.0",
+  "md5"           : "2.1.0",
   "async"         : "0.1.22"
 });
 
