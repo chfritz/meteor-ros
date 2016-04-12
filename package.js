@@ -1,6 +1,6 @@
 Package.describe({
   name: 'chfritz:ros',
-  version: '0.0.2',
+  version: '0.0.3',
   summary: 'Meteor package for ROS. For now this only allows publishing and subscribing to topics.',
   git: 'https://github.com/chfritz/meteor-ros',
   documentation: 'README.md'
