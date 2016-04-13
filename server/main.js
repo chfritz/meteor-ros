@@ -9,7 +9,9 @@ class ROSHandler {
     /** list of subscribes, needed to later unsubscribe again */
     this.subscribers = {};
   };
-  
+
+  /** subscribe to the given topic of the given message type. The
+   content will be made available in the Topics collection. */
   subscribe(topic, messageType) {
     const self = this;
 

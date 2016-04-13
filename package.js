@@ -8,7 +8,8 @@ Package.describe({
 
 Npm.depends({
   "portscanner"   : "0.1.3",
-  "xmlrpc"        : "1.0.2",
+  // "xmlrpc"        : "1.0.2",
+  "xmlrpc"        : "1.3.1",
   "eventemitter2" : "0.4.14",
   "walker"        : "1.0.7",
   "md5"           : "2.1.0",
