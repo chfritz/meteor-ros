@@ -13,8 +13,7 @@ Npm.depends({
   "eventemitter2" : "0.4.14",
   "walker"        : "1.0.7",
   "md5"           : "2.1.0",
-  "async"         : "0.1.22",
-  "underscore"    : "1.8.3"
+  "async"         : "0.1.22"
 });
 
 Package.onUse(function(api) {
