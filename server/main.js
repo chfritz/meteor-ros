@@ -1,4 +1,6 @@
 /** Meteor code for the server */
+  
+ros = Npm.require('/home/cfritz/work/rosnodejs');
 
 Meteor.publish('ros-topics');
 
