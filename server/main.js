@@ -1,28 +1,16 @@
 /** Meteor code for the server */
   
-ros = Npm.require('/home/cfritz/work/rosnodejs');
-
+rosjs = Npm.require('rosnodejs');
 Meteor.publish('ros-topics');
 
 class ROSHandler {
 
-  constructor() {
-
-    /** list of subscribes, needed to later unsubscribe again */
-    this.subscribers = {};
-
-    /** list of last messages per topic */
-    this.messages = {};
-
-    this.updaters = {};
-  }
-
-  /** regularly take last message for topic and upsert collection */
-  createUpdater(topic, rate) {
-    var self = this;
-    this.updaters[topic] = Meteor.setInterval(function() {
-      Topics.upsert(topic, self.messages[topic]);
-    }, rate * 1000);
+  constructor(options) {
+    this._rosNode = Meteor.wrapAsync(function(callback) {
+      rosjs.initNode('/my_node', options).then( function(rosNode) {
+        callback(null, rosNode);
+      });
+    })();
   }
 
   /** subscribe to the given topic of the given message type. The
@@ -32,50 +20,27 @@ class ROSHandler {
   subscribe(topic, messageType, rate = 1) {
     const self = this;
 
-    // create an update loop for this topic
-    this.createUpdater(topic, rate);
-
-    // subscibe
-    ros.types([
-      messageType
-    ], function(Type) {
-      
-      // Creates the topic
-      var subscriber = new ros.topic({
-        node        : 'listener', 
-        topic       : topic,
-        messageType : Type
-      });
-
-      subscriber.on('unregistered_subscriber', function() {
-        console.log("unsubscribed from ", topic);
-      });
-
-      // Subscribes to the topic
-      subscriber.subscribe(function(message) {
-        self.messages[topic] = message;
-      });
-
-      self.subscribers[topic] = subscriber;
-
-      console.log("subscribed to", topic);
-    });
-
+    this._sub = this._rosNode.subscribe(
+      topic,
+      messageType,
+      // Meteor.bindEnvironment(
+        function(data) {
+          console.log('SUB DATA ' + data.data);
+          // Topics.upsert(topic, data);
+        },
+      // ),
+      {
+        queueSize: 1,
+        throttleMs: 1000,
+      } 
+    );
   }
 
   unsubscribe(topic) {
-    const subscriber = this.subscribers[topic];
-    if (subscriber) {
-      subscriber.unregisterSubscriber();
-    } else {
-      console.log("Not subscribed to ", topic);
-    }
-
-    if (this.updaters[topic]) {
-      Meteor.clearInterval(this.updaters[topic]);
-      delete this.updaters[topic];
-    }
+    this._rosNode.unsubscribe(topic);
   }
 };
 
-ROS = new ROSHandler();
+ROS = function(options) {
+  return new ROSHandler(options);
+};
