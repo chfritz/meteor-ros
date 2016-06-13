@@ -7,9 +7,9 @@ Package.describe({
 });
 
 Npm.depends({
-  "rosnodejs": "1.0.0"
+  // "rosnodejs": "1.0.0"
   // "es6-shim": "0.35.0",
-  // "rosjs": "git+https://github.com/RethinkRobotics-opensource/rosjs#kinetic-devel"
+  "rosjs": "git+https://github.com/chfritz/rosjs#fix_service_md5sums"
 });
 
 Package.onUse(function(api) {

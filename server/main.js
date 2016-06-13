@@ -101,6 +101,7 @@ class ROSHandler {
       
         service = service.replace(/^\//, ""); // trim initial "/" if any
         let serviceClient = self._rosNode.serviceClient('/'+service, serviceType);
+        console.log("serviceClient", serviceClient, serviceClient.__proto__); // #HERE
         
         // get service type class
         const [serviceTypePackage, serviceTypeName] = serviceType.split('/');
@@ -113,7 +114,8 @@ class ROSHandler {
             if (available) {
               const request = new serviceTypeClassRequest(requestData);
 
-              console.log("calling service", service, "with data", request);
+              console.log("calling service", service, "with data", request, 
+                          request.__proto__, request.md5sum());
               serviceClient.call(request, (resp) => {
                 console.log('Service response ' + JSON.stringify(resp));
                 callback(null, resp);
