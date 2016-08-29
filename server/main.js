@@ -100,6 +100,7 @@ class ROSHandler {
       function(requestData, callback) {
       
         service = service.replace(/^\//, ""); // trim initial "/" if any
+        console.log("serviceClient", self._rosNode); // #HERE
         let serviceClient = self._rosNode.serviceClient('/'+service, serviceType);
         console.log("serviceClient", serviceClient, serviceClient.__proto__); // #HERE
         

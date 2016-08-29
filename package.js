@@ -13,7 +13,7 @@ Npm.depends({
 });
 
 Package.onUse(function(api) {
-  api.versionsFrom('1.3.2.4');
+  api.versionsFrom('1.4.1');
   api.use(['ecmascript', 'mongo']);
   api.addFiles(['server/main.js'], 'server');
   api.addFiles(['shared.js']);
@@ -28,5 +28,5 @@ Package.onTest(function(api) {
   api.use('ecmascript');
   api.use('tinytest');
   api.use('chfritz:ros');
-  api.addFiles('meteor-ros-tests.js');
+  api.addFiles('meteor-ros-tests.js', 'server');
 });
