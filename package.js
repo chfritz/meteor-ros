@@ -1,6 +1,6 @@
 Package.describe({
   name: 'chfritz:ros',
-  version: '0.0.4',
+  version: '0.1.0',
   summary: 'Meteor package for ROS: sync topics with collections, relay services as methods',
   git: 'https://github.com/chfritz/meteor-ros',
   documentation: 'README.md'
@@ -9,7 +9,7 @@ Package.describe({
 Npm.depends({
   // "rosnodejs": "1.0.0"
   // "es6-shim": "0.35.0",
-  "rosjs": "git+https://github.com/chfritz/rosjs#fix_service_md5sums"
+  "rosjs": "git+https://github.com/chfritz/rosjs#support_node_4.5"
 });
 
 Package.onUse(function(api) {
