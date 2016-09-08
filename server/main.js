@@ -17,9 +17,11 @@ class ROSHandler {
   */
   constructor(options) {
     this._rosNode = Meteor.wrapAsync(function(callback) {
-      rosjs.initNode('/my_node', options).then( function(rosNode) {
-        callback(null, rosNode);
-      });
+      const id = Meteor.absoluteUrl().replace(/[\/:]/g, "_");
+      rosjs.initNode('/meteor-ros/' + id, options)
+        .then( function(rosNode) {
+          callback(null, rosNode);
+        });
     })();
   }
 
@@ -27,8 +29,9 @@ class ROSHandler {
   // Topics
   // ---------------------------------------------------------
 
-  /** subscribe to the given topic of the given message type. The
-      content will be made available in the Topics collection. 
+  /** Sync the given topic of the given message type. The content will
+      be made available in the Topics collection. Any changes to the
+      respective document will be published back on the ROS topic.
 
       @param topic: the name of the topic
 
@@ -43,9 +46,10 @@ class ROSHandler {
       This will keep upserting the "/turtle1/pose" document in the
       Topics collection with the latest value, twice a second.
   */
-  subscribe(topic, messageType, rate = 1) {
+  sync(topic, messageType, rate = 1) {
     const self = this;
 
+    // subscribe to new messages on topic
     this._sub = this._rosNode.subscribe(
       topic,
       messageType,
@@ -53,14 +57,34 @@ class ROSHandler {
         function(data) {
           _.extend(data, {_id: topic});
           // console.log('SUB DATA ', topic, data);
+          data._source = "ros";
           Topics.upsert(topic, data);
         }
       ),
       {
         queueSize: 1,
-        throttleMs: 1000 / rate,
+        throttleMs: 1000 / rate
       } 
     );
+
+    // publish any changed made in meteor back to ros topic
+    let publisher = this._rosNode.advertise(topic, messageType, {
+      queueSize: 1,
+      latching: true,
+      throttleMs: 100
+    });
+    const parts = messageType.split("/");
+    const Message = rosjs.require(parts[0]).msg[parts[1]];
+    Topics.find({_id: topic, _source: {$ne: "ros"}}).observe({
+      changed(document) {
+        // #HERE: we never come here
+        console.log("publish", document);
+        const msg = new Message(document);
+        console.log("publish", msg);
+        publisher.publish(msg);
+      }
+    });
+    console.log("done");
   }
 
   /** Unsubscribe from topic */
