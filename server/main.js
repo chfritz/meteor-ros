@@ -1,24 +1,20 @@
-/** Meteor code for the server */
-  
-rosjs = Npm.require('rosnodejs');
+
+const rosjs = Npm.require('rosnodejs');
+
+import { Topics } from '../shared';
+export { Topics as Topics } from '../shared';
+
 Meteor.publish('ros-topics');
 
 class ROSHandler {
 
-  /** 
-      Connect to ROS and prepare usage of the message and service
-      types given in the options.
-
-      Example: 
-        new ROSHandler({
-          messages: ['std_msgs/String', 'turtlesim/Pose'],
-          services: ['std_srvs/SetBool']
-        });
+  /**
+      Connect to ROS and load message and service definitions.
   */
-  constructor(options) {
+  constructor() {
     this._rosNode = Meteor.wrapAsync(function(callback) {
       const id = Meteor.absoluteUrl().replace(/[\/:]/g, "_");
-      rosjs.initNode('/meteor-ros/' + id, options)
+      rosjs.initNode('/meteor-ros/' + id, {onTheFly: true})
         .then( function(rosNode) {
           callback(null, rosNode);
         });
@@ -39,7 +35,7 @@ class ROSHandler {
       specified in the constructor.
 
       @param rate: update frequency (Hz)
-      
+
       Example:
         subscribe("/turtle1/pose", "turtlesim/Pose", 2)
 
@@ -55,16 +51,18 @@ class ROSHandler {
       messageType,
       Meteor.bindEnvironment(
         function(data) {
-          _.extend(data, {_id: topic});
+          // _.extend(data, {_id: topic});
           // console.log('SUB DATA ', topic, data);
+          data._id = topic;
           data._source = "ros";
-          Topics.upsert(topic, data);
+          Topics.direct.upsert(topic, data);
+          // #HERE ^ get rid of all the __proto__ fields in data
         }
       ),
       {
         queueSize: 1,
         throttleMs: 1000 / rate
-      } 
+      }
     );
 
     // publish any changed made in meteor back to ros topic
@@ -75,16 +73,19 @@ class ROSHandler {
     });
     const parts = messageType.split("/");
     const Message = rosjs.require(parts[0]).msg[parts[1]];
-    Topics.find({_id: topic, _source: {$ne: "ros"}}).observe({
-      changed(document) {
-        // #HERE: we never come here
-        console.log("publish", document);
-        const msg = new Message(document);
+
+    Topics.after.update(
+      function(userId, document, fieldNames, modifier, update_options) {
+        // reduce to just the message fields:
+        const fields = _.pluck(Message().__proto__.fields, "name");
+        const msgBody = _.pick(document, fields);
+        delete msgBody.header;
+
+        // publish message
+        const msg = new Message(msgBody);
         console.log("publish", msg);
         publisher.publish(msg);
-      }
-    });
-    console.log("done");
+      });
   }
 
   /** Unsubscribe from topic */
@@ -96,7 +97,7 @@ class ROSHandler {
   // ---------------------------------------------------------
   // Services
   // ---------------------------------------------------------
- 
+
   /** Expose a ROS service as a meteor method.
 
       @param service: the service to call (e.g., "/set_bool")
@@ -119,27 +120,27 @@ class ROSHandler {
 
     let definition = {};
     const self = this;
-    
+
     definition[service] = Meteor.wrapAsync(
       function(requestData, callback) {
-      
+
         service = service.replace(/^\//, ""); // trim initial "/" if any
         console.log("serviceClient", self._rosNode); // #HERE
         let serviceClient = self._rosNode.serviceClient('/'+service, serviceType);
         console.log("serviceClient", serviceClient, serviceClient.__proto__); // #HERE
-        
+
         // get service type class
         const [serviceTypePackage, serviceTypeName] = serviceType.split('/');
         const serviceTypeClass = rosjs.require(serviceTypePackage).srv[serviceTypeName];
         console.log("serviceTypeClass", serviceTypeClass);
         const serviceTypeClassRequest = serviceTypeClass["Request"];
-       
+
         self._rosNode.waitForService(serviceClient.getService(), timeout)
           .then( (available) => {
             if (available) {
               const request = new serviceTypeClassRequest(requestData);
 
-              console.log("calling service", service, "with data", request, 
+              console.log("calling service", service, "with data", request,
                           request.__proto__, request.md5sum());
               serviceClient.call(request, (resp) => {
                 console.log('Service response ' + JSON.stringify(resp));
@@ -159,6 +160,6 @@ class ROSHandler {
 
 };
 
-ROS = function(options) {
+export const ROS = function(options) {
   return new ROSHandler(options);
 };
