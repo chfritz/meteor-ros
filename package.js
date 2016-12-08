@@ -9,19 +9,15 @@ Package.describe({
 Npm.depends({
   // "rosnodejs": "1.0.0"
   // "es6-shim": "0.35.0",
-  "rosjs": "git+https://github.com/chfritz/rosjs#support_node_4.5"
+  "rosnodejs": "git+https://github.com/chfritz/rosjs#with_dist"
 });
 
 Package.onUse(function(api) {
   api.versionsFrom('1.4.1');
   api.use(['ecmascript', 'mongo', 'underscore']);
-  api.addFiles(['server/main.js'], 'server');
-  api.addFiles(['shared.js']);
-  if (api.export) {
-    api.export('rosjs', 'server');
-    api.export('ROS', 'server');
-    api.export('Topics');
-  }
+  api.use('matb33:collection-hooks@0.8.1');
+  api.mainModule('client/main.js', 'client');
+  api.mainModule('server/main.js', 'server');
 });
 
 Package.onTest(function(api) {
