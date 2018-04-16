@@ -7,9 +7,7 @@ Package.describe({
 });
 
 Npm.depends({
-  // "rosnodejs": "1.0.0"
-  // "es6-shim": "0.35.0",
-  "rosnodejs": "git+https://github.com/chfritz/rosjs#with_dist"
+  "rosnodejs": "2.2.0"
 });
 
 Package.onUse(function(api) {
