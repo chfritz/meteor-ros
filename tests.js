@@ -73,7 +73,7 @@ describe('meteor-ros', function () {
     pub.publish({data: expected});
   })
 
-  it('calls a/the ros service on meteor call', function (done) {
+  it('calls a ros service on a meteor call', function (done) {
     const service = '/set_bool';
     const srvType = 'std_srvs/SetBool';
     const expectedSuccess = true;
