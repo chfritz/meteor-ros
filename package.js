@@ -14,6 +14,7 @@ Package.onUse(function(api) {
   api.versionsFrom('1.6.1.1');
   api.use([
     'ecmascript',
+    'underscore',
     'mongo',
     'matb33:collection-hooks@0.8.1'
   ], 'server');
@@ -24,7 +25,7 @@ Package.onTest(function(api) {
   api.use('chfritz:ros');
   api.use([
     'ecmascript',
-    'cultofcoders:mocha',
+    'cultofcoders:mocha'
   ]);
   api.mainModule('tests.js', 'server');
 });

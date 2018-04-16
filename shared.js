@@ -1,2 +1,1 @@
-
-export const Topics = new Mongo.Collection('ros-topics');
+export const Topics = new Mongo.Collection('ros_topics');
