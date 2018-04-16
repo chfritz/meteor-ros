@@ -11,16 +11,20 @@ Npm.depends({
 });
 
 Package.onUse(function(api) {
-  api.versionsFrom('1.4.1');
-  api.use(['ecmascript', 'mongo', 'underscore']);
-  api.use('matb33:collection-hooks@0.8.1');
-  api.mainModule('client/main.js', 'client');
+  api.versionsFrom('1.6.1.1');
+  api.use([
+    'ecmascript',
+    'mongo',
+    'matb33:collection-hooks@0.8.1'
+  ], 'server');
   api.mainModule('server/main.js', 'server');
 });
 
 Package.onTest(function(api) {
-  api.use('ecmascript');
-  api.use('tinytest');
   api.use('chfritz:ros');
-  api.addFiles('meteor-ros-tests.js', 'server');
+  api.use([
+    'ecmascript',
+    'cultofcoders:mocha',
+  ]);
+  api.mainModule('tests.js', 'server');
 });
