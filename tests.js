@@ -1,15 +1,26 @@
+import { spawn, spawnSync } from 'child_process';
+import rosnodejs from 'rosnodejs';
 import { chai } from 'meteor/practicalmeteor:chai';
 
-describe('my module', function () {
-  // beforeEach(function () {
-  //   console.log('beforeEach');
-  //   // resetDatabase();
-  // });
+let rosNode = null;
 
-  it('does something that should be tested', function (done) {
-    // This code will be executed by the test driver when the app is started
-    // in the correct mode
-    console.log('does something that should be tested');
+describe('my module', function () {
+  beforeEach(function (done) {
+    spawn('roscore');
+    Meteor._sleepForMs(500);  // wait for rosmaster to start
+    rosNode = Promise.await(
+      rosnodejs.initNode('/my_node', { onTheFly: true})
+    );
+    done();
+  });
+
+  afterEach(function() {
+    const out = spawnSync('killall -9 roscore; killall -9 rosmaster', {shell: true});
+    rosNode = null;
+  })
+
+  it('does something', function (done) {
+    console.log('TEST HAPPENS HERE!');
     done();
   })
 });
