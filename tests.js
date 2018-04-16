@@ -17,9 +17,9 @@ describe('meteor-ros', function () {
   })
 
   beforeEach(function (done) {
+    if (handle) { handle.stop(); }
     Topics.remove({});  // resetDatabase
-    // initialize ROS
-    ros = ROS();
+    ros = ROS();  // initialize ROS object
     nh = ros._nh;
     done();
   });
@@ -27,7 +27,7 @@ describe('meteor-ros', function () {
   it('publishes a msg on updating a doc', function (done) {
     const topic = '/chatter';
     const msgType = 'std_msgs/String';
-    const expected = 'Hello World!';
+    const expected = 'Message published!';
 
     ros.sync(topic, msgType);
     sub = nh.subscribe(
@@ -47,11 +47,10 @@ describe('meteor-ros', function () {
     });
   })
 
-  // TODO: investigate why it is always succeeding
   it('updates a doc on publishing a msg', function (done) {
     const topic = '/chatter';
     const msgType = 'std_msgs/String';
-    const expected = 'Hello World!';
+    const expected = 'Doc updated!';
 
     ros.sync(topic, msgType);
     Message = rosnodejs.checkMessage(msgType);
@@ -65,11 +64,36 @@ describe('meteor-ros', function () {
       chai.assert.equal(doc && doc.data, expected);
       done();
     }
-    const handle = Topics.find({_id: topic}).observeChanges({
+    // const handle = Topics.find({_id: topic}).observeChanges({
+    handle = Topics.find({_id: topic}).observeChanges({
       added: callback,
       changed: callback
     });
 
     pub.publish({data: expected});
+  })
+
+  it('calls a/the ros service on meteor call', function (done) {
+    const service = '/set_bool';
+    const srvType = 'std_srvs/SetBool';
+    const expectedSuccess = true;
+    const expectedMessage = 'Inverted!';
+
+    const SetBool = rosnodejs.checkService(srvType);
+    nh.advertiseService('/set_bool', SetBool,
+      (req, resp) => {
+        resp.success = !req.data;
+        resp.message = expectedMessage;
+        return true;
+    });
+
+    ros.relayService(service, srvType);
+
+    Meteor.call(service, { sucess: !expectedSuccess }, (err, res) => {
+      chai.assert(err === null || err === undefined);
+      chai.assert.equal(res.success, expectedSuccess);
+      chai.assert.equal(res.message, expectedMessage);
+      done();
+    });
   })
 });

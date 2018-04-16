@@ -15,10 +15,20 @@ class ROSHandler {
     this._nh = Promise.await(rosnodejs.initNode(`/meteor_ros/${id}`, {onTheFly: true}));
     this._synced = {};
 
+    // stop existing ROS publishers/subscribers/services
+    _.map(_.keys(this._nh._node._publishers), (topic) => {
+      this._nh.unadvertise(topic);
+    });
+    _.map(_.keys(this._nh._node._subscribers), (topic) => {
+      this._nh.unsubscribe(topic);
+    });
+    _.map(_.keys(this._nh._node._services), (topic) => {
+      this._nh.unadvertiseService(topic);
+    });
     // remove hooks
     // NOTE: Cannot remove a particular hook using handle.remove(), see
     //   https://github.com/matb33/meteor-collection-hooks/blob/meteor-1.6.1/collection-hooks.js#L81-L83
-    Topics._hookAspects.update.insert = [];
+    Topics._hookAspects.insert.after = [];
     Topics._hookAspects.update.after = [];
   }
 
@@ -77,6 +87,7 @@ class ROSHandler {
     Message = rosnodejs.checkMessage(msgType);
 
     const callback = function(userId, doc, fieldNames, modifier, options) {
+      console.log('topic, doc', topic, doc);
       if (doc._id !== topic) { return; }
 
       // reduce to just the message fields
@@ -112,7 +123,7 @@ class ROSHandler {
 
       @param service: the service to call (e.g., '/set_bool')
 
-      @param serviceType: the service type name (e.g.,
+      @param srvType: the service type name (e.g.,
       'std_srvs/SetBool'); must have been specified in constructor.
 
       @param timeout (optional): timeout in milliseconds before giving
@@ -125,45 +136,41 @@ class ROSHandler {
       be used as data for std_srvs/SetBool. The method calls the
       service and waits for the response.
   */
-  relayService(service, serviceType, timeout = 2000) {
-    logger.debug(`relayService ${service} ${serviceType} ${timeout}`);
+  relayService(service, srvType, timeout = 2000) {
+    logger.debug(`relayService ${service} ${srvType} ${timeout}`);
+
+    delete Meteor.server.method_handlers[service];
 
     let definition = {};
-    const self = this;
 
-    definition[service] = Meteor.wrapAsync(
-      function(requestData, callback) {
+    definition[service] = Meteor.wrapAsync((reqData, callback) => {
+      logger.debug(`relaying ${service} ${reqData}`);
 
-        service = service.replace(/^\//, ''); // trim initial '/' if any
-        console.log('serviceClient', self._rosNode); // #HERE
-        let serviceClient = self._rosNode.serviceClient('/'+service, serviceType);
-        console.log('serviceClient', serviceClient, serviceClient.__proto__); // #HERE
+      service = service.replace(/^\//, '');  // trim initial '/' if any
+      const serviceClient = this._nh.serviceClient('/'+service, srvType);
 
-        // get service type class
-        const [serviceTypePackage, serviceTypeName] = serviceType.split('/');
-        const serviceTypeClass = rosnodejs.require(serviceTypePackage).srv[serviceTypeName];
-        console.log('serviceTypeClass', serviceTypeClass);
-        const serviceTypeClassRequest = serviceTypeClass['Request'];
+      // get service type class
+      const Service = rosnodejs.checkService(srvType);
+      const ServiceRequest = Service['Request'];
+      const available = Promise.await(
+        this._nh.waitForService(serviceClient.getService(), timeout)
+      );
+      if (available) {
+        const request = new ServiceRequest(reqData);
 
-        self._rosNode.waitForService(serviceClient.getService(), timeout)
-          .then( (available) => {
-            if (available) {
-              const request = new serviceTypeClassRequest(requestData);
-
-              console.log('calling service', service, 'with data', request,
-                          request.__proto__, request.md5sum());
-              serviceClient.call(request, (resp) => {
-                console.log('Service response ' + JSON.stringify(resp));
-                callback(null, resp);
-              });
-            } else {
-              callback({
-                msg: 'timed out',
-                description: 'The request to the service ('+ service +') timed out.'
-              });
-            }
-          });
-      });
+        logger.debug(`calling ${service} with ${request} ${request.__proto__}`);
+        serviceClient.call(request).then((resp) => {
+          callback(null, resp);
+        }).catch((err) => {
+          callback(err);
+        });
+      } else {
+        callback(new Meteor.Error(
+          'timed-out',
+          `The request to the service (${service}) timed out.`
+        ));
+      }
+    });
 
     Meteor.methods(definition);
   }
