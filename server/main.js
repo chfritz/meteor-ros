@@ -1,10 +1,9 @@
-
-const rosjs = Npm.require('rosnodejs');
-
+import rosnodejs from 'rosnodejs';
 import { Topics } from '../shared';
-export { Topics as Topics } from '../shared';
 
-Meteor.publish('ros-topics');
+Meteor.publish('ros_topics');
+
+const logger = console;
 
 class ROSHandler {
 
@@ -12,13 +11,25 @@ class ROSHandler {
       Connect to ROS and load message and service definitions.
   */
   constructor() {
-    this._rosNode = Meteor.wrapAsync(function(callback) {
-      const id = Meteor.absoluteUrl().replace(/[\/:]/g, "_");
-      rosjs.initNode('/meteor-ros/' + id, {onTheFly: true})
-        .then( function(rosNode) {
-          callback(null, rosNode);
-        });
-    })();
+    const id = Meteor.absoluteUrl().replace(/[\/:]/g, '_');
+    this._nh = Promise.await(rosnodejs.initNode(`/meteor_ros/${id}`, {onTheFly: true}));
+    this._synced = {};
+
+    // stop existing ROS publishers/subscribers/services
+    _.map(_.keys(this._nh._node._publishers), (topic) => {
+      this._nh.unadvertise(topic);
+    });
+    _.map(_.keys(this._nh._node._subscribers), (topic) => {
+      this._nh.unsubscribe(topic);
+    });
+    _.map(_.keys(this._nh._node._services), (topic) => {
+      this._nh.unadvertiseService(topic);
+    });
+    // remove hooks
+    // NOTE: Cannot remove a particular hook using handle.remove(), see
+    //   https://github.com/matb33/meteor-collection-hooks/blob/meteor-1.6.1/collection-hooks.js#L81-L83
+    Topics._hookAspects.insert.after = [];
+    Topics._hookAspects.update.after = [];
   }
 
   // ---------------------------------------------------------
@@ -31,66 +42,76 @@ class ROSHandler {
 
       @param topic: the name of the topic
 
-      @param messageType: the message type name; must have been
+      @param msgType: the message type name; must have been
       specified in the constructor.
 
-      @param rate: update frequency (Hz)
+      @param rate: update frequency (Hz); 0 means update as soon as possible.
 
       Example:
-        subscribe("/turtle1/pose", "turtlesim/Pose", 2)
+        subscribe('/turtle1/pose', 'turtlesim/Pose', 2)
 
-      This will keep upserting the "/turtle1/pose" document in the
+      This will keep upserting the '/turtle1/pose' document in the
       Topics collection with the latest value, twice a second.
   */
-  sync(topic, messageType, rate = 1) {
-    const self = this;
+  sync(topic, msgType, rate = 1) {
+    if (this._synced[topic]) {
+      logger.warn(`${topic} is already synced; skipping.`);
+      return;
+    }
+
+    logger.debug(`sync ${topic} ${msgType} ${rate}`);
 
     // subscribe to new messages on topic
-    this._sub = this._rosNode.subscribe(
+    this._nh.subscribe(
       topic,
-      messageType,
-      Meteor.bindEnvironment(
-        function(data) {
-          // _.extend(data, {_id: topic});
-          // console.log('SUB DATA ', topic, data);
-          data._id = topic;
-          data._source = "ros";
-          Topics.direct.upsert(topic, data);
-          // #HERE ^ get rid of all the __proto__ fields in data
-        }
-      ),
+      msgType,
+      Meteor.bindEnvironment((data) => {
+        logger.debug(`sub ${topic} ${data}`);
+        data._id = topic;
+        data._source = 'ros';
+        Topics.direct.upsert(topic, data);
+        // #HERE ^ get rid of all the __proto__ fields in data
+      }),
       {
         queueSize: 1,
-        throttleMs: 1000 / rate
+        throttleMs: rate ? 1000 / rate : 0
       }
     );
 
     // publish any changed made in meteor back to ros topic
-    let publisher = this._rosNode.advertise(topic, messageType, {
+    const pub = this._nh.advertise(topic, msgType, {
       queueSize: 1,
       latching: true,
-      throttleMs: 100
+      throttleMs: rate ? 1000 / rate : 0
     });
-    const parts = messageType.split("/");
-    const Message = rosjs.require(parts[0]).msg[parts[1]];
+    Message = rosnodejs.checkMessage(msgType);
 
-    Topics.after.update(
-      function(userId, document, fieldNames, modifier, update_options) {
-        // reduce to just the message fields:
-        const fields = _.pluck(Message().__proto__.fields, "name");
-        const msgBody = _.pick(document, fields);
-        delete msgBody.header;
+    const callback = function(userId, doc, fieldNames, modifier, options) {
+      console.log('topic, doc', topic, doc);
+      if (doc._id !== topic) { return; }
 
-        // publish message
-        const msg = new Message(msgBody);
-        console.log("publish", msg);
-        publisher.publish(msg);
-      });
+      // reduce to just the message fields
+      const fields = _.pluck(Message.fields, 'name');
+      const data = _.pick(doc, fields);
+      delete data.header;
+
+      // publish message
+      const msg = new Message(data);
+      logger.debug('publish', msg);
+      pub.publish(msg);
+    }
+    Topics.after.insert(callback);
+    Topics.after.update(callback);
+  }
+
+  /** Unadvertise topic */
+  unadvertise(topic) {
+    this._nh.unadvertise(topic);
   }
 
   /** Unsubscribe from topic */
   unsubscribe(topic) {
-    this._rosNode.unsubscribe(topic);
+    this._nh.unsubscribe(topic);
   }
 
 
@@ -100,10 +121,10 @@ class ROSHandler {
 
   /** Expose a ROS service as a meteor method.
 
-      @param service: the service to call (e.g., "/set_bool")
+      @param service: the service to call (e.g., '/set_bool')
 
-      @param serviceType: the service type name (e.g.,
-      "std_srvs/SetBool"); must have been specified in constructor.
+      @param srvType: the service type name (e.g.,
+      'std_srvs/SetBool'); must have been specified in constructor.
 
       @param timeout (optional): timeout in milliseconds before giving
       up (default: 2000ms)
@@ -115,51 +136,49 @@ class ROSHandler {
       be used as data for std_srvs/SetBool. The method calls the
       service and waits for the response.
   */
-  relayService(service, serviceType, timeout = 2000) {
-    console.log("relaying service", service);
+  relayService(service, srvType, timeout = 2000) {
+    logger.debug(`relayService ${service} ${srvType} ${timeout}`);
+
+    delete Meteor.server.method_handlers[service];
 
     let definition = {};
-    const self = this;
 
-    definition[service] = Meteor.wrapAsync(
-      function(requestData, callback) {
+    definition[service] = Meteor.wrapAsync((reqData, callback) => {
+      logger.debug(`relaying ${service} ${reqData}`);
 
-        service = service.replace(/^\//, ""); // trim initial "/" if any
-        console.log("serviceClient", self._rosNode); // #HERE
-        let serviceClient = self._rosNode.serviceClient('/'+service, serviceType);
-        console.log("serviceClient", serviceClient, serviceClient.__proto__); // #HERE
+      service = service.replace(/^\//, '');  // trim initial '/' if any
+      const serviceClient = this._nh.serviceClient('/'+service, srvType);
 
-        // get service type class
-        const [serviceTypePackage, serviceTypeName] = serviceType.split('/');
-        const serviceTypeClass = rosjs.require(serviceTypePackage).srv[serviceTypeName];
-        console.log("serviceTypeClass", serviceTypeClass);
-        const serviceTypeClassRequest = serviceTypeClass["Request"];
+      // get service type class
+      const Service = rosnodejs.checkService(srvType);
+      const ServiceRequest = Service['Request'];
+      const available = Promise.await(
+        this._nh.waitForService(serviceClient.getService(), timeout)
+      );
+      if (available) {
+        const request = new ServiceRequest(reqData);
 
-        self._rosNode.waitForService(serviceClient.getService(), timeout)
-          .then( (available) => {
-            if (available) {
-              const request = new serviceTypeClassRequest(requestData);
-
-              console.log("calling service", service, "with data", request,
-                          request.__proto__, request.md5sum());
-              serviceClient.call(request, (resp) => {
-                console.log('Service response ' + JSON.stringify(resp));
-                callback(null, resp);
-              });
-            } else {
-              callback({
-                msg: "timed out",
-                description: "The request to the service ("+ service +") timed out."
-              });
-            }
-          });
-      });
+        logger.debug(`calling ${service} with ${request} ${request.__proto__}`);
+        serviceClient.call(request).then((resp) => {
+          callback(null, resp);
+        }).catch((err) => {
+          callback(err);
+        });
+      } else {
+        callback(new Meteor.Error(
+          'timed-out',
+          `The request to the service (${service}) timed out.`
+        ));
+      }
+    });
 
     Meteor.methods(definition);
   }
 
 };
 
-export const ROS = function(options) {
+const ROS = function(options) {
   return new ROSHandler(options);
 };
+
+export { Topics, ROS };
